@@ -3,10 +3,10 @@
 run:
 	source venv/bin/activate && python3 qa.py
 
-gen:
+embed:
 	source venv/bin/activate && python3 gen_embeddings.py
 
-data:
+process:
 	source venv/bin/activate && python3 process_data.py
 
 scrape:
