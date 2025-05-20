@@ -3,6 +3,7 @@ from huggingface_hub import InferenceClient
 from sentence_transformers import SentenceTransformer
 import chromadb
 from dotenv import load_dotenv
+from core.retrieval import retrieve_relevant_chunks, calculate_similarity, calculate_penalized_score
 
 
 # --- CONFIG ---
@@ -28,18 +29,29 @@ hf_client = InferenceClient(
 
 # --- RAG COMPONENTS ---
 
-def retrieve_chunks(query, top_k=5, metadata_filter=None):
-    query_embedding = embedder.encode(query).tolist()
-    results = collection.query(query_embeddings=[query_embedding], n_results=top_k, where=metadata_filter)
-    documents = results.get("documents", [[]])[0]
-    metadatas = results.get("metadatas", [[]])[0]
-    if not documents:
+def retrieve_chunks(query, top_k=5, metadata_filter=None, top_j=2):
+    # Use the same retrieval logic as before, but group and summarize chunks per article
+    results = retrieve_relevant_chunks(query, collection, embedder, metadata_filter=metadata_filter, top_k=top_k, top_j=top_j)
+    summarized_chunks = []
+    for article in results:
+        # Combine all top chunks for this article into a single summary
+        combined_content = "\n---\n".join([chunk["doc"] for chunk in article["chunks"]])
+        # Use the metadata from the first chunk as representative
+        meta = article["chunks"][0]["meta"] if article["chunks"] else {}
+        # Calculate similarity between query and combined content
+        similarity = calculate_similarity(embedder, query, combined_content)
+        penalized_score = calculate_penalized_score(embedder, combined_content, query)
+        summarized_chunks.append({
+            "content": combined_content,
+            "metadata": meta,
+            "similarity": similarity,
+            "penalized_score": penalized_score
+        })
+    if not summarized_chunks:
         return [
-            {"content": "Sorry, I couldn't find relevant food places.", "metadata": {}}
+            {"content": "Sorry, I couldn't find relevant food places.", "metadata": {}, "similarity": 0.0}
         ]
-    return [
-        {"content": doc, "metadata": meta} for doc, meta in zip(documents, metadatas)
-    ]
+    return summarized_chunks
 
 def generate_prompt_context(context_chunks):
     formatted_chunks = []
@@ -49,8 +61,8 @@ def generate_prompt_context(context_chunks):
         location = metadata.get('location', 'Unknown Location')
         cuisine = metadata.get('cuisine_type', 'Unknown Cuisine')
         venue_type = metadata.get('venue_type', 'Unknown Venue Type')
-        # Format the chunk with metadata
-        formatted_chunk = f"Name: {name}\nLocation: {location}\nCuisine: {cuisine}\nVenue Type:{venue_type}\nContent: {chunk['content']}"
+        # Format the chunk with metadata, now with combined content
+        formatted_chunk = f"Name: {name}\nLocation: {location}\nCuisine: {cuisine}\nVenue Type: {venue_type}\nContent: {chunk['content']}"
         formatted_chunks.append(formatted_chunk)
     return "\n---\n".join(formatted_chunks)
 
@@ -60,13 +72,14 @@ def generate_chat_response(query, context):
     "When answering:\n"
     "- Be concise, friendly, and informative.\n"
     "- Use the context provided to extract real data. Do not make up information.\n"
+    "- Ignore any information that is not relevant the food venue in the context. Do not include it in the response.\n"
     "- If available, include the following in the response for each place:\n"
-    "  🍽️ \033[1mName\033[1m: name of the place.\n"
-    "  ⏰ \033[1mOpening Hours\033[1m: If known, show opening hours.\n"
-    "  📍 \033[1mLocation\033[1m: General area like Central, East, etc.\n"
-    "  🍜 \033[1mCuisine / Tags\033[1m: Mention notable types of food served.\n"
-    "  🏷️ \033[1mVenue Type\033[1m: Mention if it's a cafe, restaurant, etc.\n"
-    "  💬 \033[1mReview Summary\033[1m: Summarize public or user reviews into one or two sentence, highlighting for why that place was chosen based on the user's query.\n\n"
+    "  🍽️ Name: name of the place.\n"
+    "  ⏰ Opening Hours: If known, show opening hours.\n"
+    "  📍 Location: General area like Central, East, etc.\n"
+    "  🍜 Cuisine / Tags: Mention notable types of food served.\n"
+    "  🏷️ Venue Type: Mention if it's a cafe, restaurant, etc.\n"
+    "  💬 Review Summary: Summarize public or user reviews into one or two sentence, highlighting for why that place was chosen based on the user's query.\n\n"
     "Format the output with these emoji headers for better readability."
 )
 
@@ -117,13 +130,33 @@ def extract_region_from_query(query):
         return {'region': {'$in':matched_regions}}
     return None
 
-# --- MAIN CHAT FUNCTION ---
+# --- GUARDRAIL SYSTEM ---
+def apply_guardrails(query, context_chunks):
+    # List of guardrail rules, each returns (should_override, response)
+    for rule in [guardrail_no_results]:
+        should_override, response = rule(query, context_chunks)
+        if should_override:
+            return True, response
+    return False, None
 
+def guardrail_no_results(query, context_chunks):
+    # If the only chunk is the default sorry message, override
+    if (
+        len(context_chunks) == 1 and
+        context_chunks[0]["content"].startswith("Sorry, I couldn't find relevant food places")
+    ):
+        return True, context_chunks[0]["content"]
+    return False, None
+
+# --- MAIN CHAT FUNCTION ---
 def answer_question(query):
     # Extract identifiable metadata from the query
     metadata_filter = extract_metadata_filter(query)
-
-    chunks = retrieve_chunks(query,metadata_filter=metadata_filter)
+    chunks = retrieve_chunks(query, metadata_filter=metadata_filter)
+    # Guardrail check
+    should_override, guardrail_response = apply_guardrails(query, chunks)
+    if should_override:
+        return guardrail_response
     context = generate_prompt_context(chunks)
     return generate_chat_response(query, context)
 
