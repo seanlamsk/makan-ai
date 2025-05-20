@@ -4,6 +4,13 @@ import os
 from tqdm import tqdm
 from dotenv import load_dotenv
 
+from transformers import AutoTokenizer
+
+import nltk
+from nltk.tokenize import sent_tokenize
+nltk.download('punkt_tab')
+
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -82,6 +89,51 @@ def chunk_text(data, chunk_size=500):
         return article
 
     return [chunk_article_text(article) for article in data]
+
+# Chunk article text into smaller segments based on sentences
+def sentence_based_chunk_text(data, max_tokens=400, overlap=50):
+    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+
+    for article in data:
+        text = article.get('article_text', '')
+        sentences = sent_tokenize(text)
+        chunks = []
+        current_chunk = []
+        current_len = 0
+
+        for i in range(len(sentences)):
+            sent = sentences[i]
+            token_len = len(tokenizer.tokenize(sent))
+            if current_len + token_len > max_tokens and current_chunk:
+                # Save current chunk
+                chunks.append(" ".join(current_chunk))
+                # Prepare overlap
+                if overlap > 0:
+                    overlap_tokens = 0
+                    overlap_chunk = []
+                    j = len(current_chunk) - 1
+                    while j >= 0 and overlap_tokens < overlap:
+                        sent_tokens = len(tokenizer.tokenize(current_chunk[j]))
+                        overlap_tokens += sent_tokens
+                        overlap_chunk.insert(0, current_chunk[j])
+                        j -= 1
+                    current_chunk = overlap_chunk.copy()
+                    current_len = sum(len(tokenizer.tokenize(s)) for s in current_chunk)
+                else:
+                    current_chunk = []
+                    current_len = 0
+            else:
+                current_chunk.append(sent)
+                current_len += token_len
+
+        # Add final chunk
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+
+        article['article_text'] = chunks
+
+    return data
+
 
 # Classify Singapore region based on extracted postal code
 def classify_sg_region_from_address(address):
@@ -165,6 +217,8 @@ file_path = RAW_INPUT_PATH
 with open(file_path, 'r') as file:
     data = json.load(file)
 
+print(f"Loaded {len(data)} articles from {file_path}")
+
 # Initialize the pipeline
 pipeline = DataCleaningPipeline([
     remove_duplicates,
@@ -172,7 +226,8 @@ pipeline = DataCleaningPipeline([
     classify_region,
     classify_venue_type,
     filter_articles,
-    chunk_text
+    # chunk_text
+    sentence_based_chunk_text
 ])
 
 # Execute the pipeline
@@ -189,3 +244,5 @@ print(f'Processed {len(cleaned_data)} articles.')
 output_file_path = CLEANED_OUTPUT_PATH
 with open(output_file_path, 'w') as file:
     json.dump(cleaned_data, file, indent=4)
+
+print(f"Cleaned data saved to {output_file_path}")
