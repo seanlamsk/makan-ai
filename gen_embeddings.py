@@ -15,6 +15,8 @@ CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "./chroma_db")
 with open(CLEANED_DATA_PATH, "r", encoding="utf-8") as f:
     dataset = json.load(f)
 
+print(f"Loaded {len(dataset)} processed articles from {CLEANED_DATA_PATH}")
+
 persist_directory = CHROMA_DB_PATH
 
 # Load sentence-transformers model
