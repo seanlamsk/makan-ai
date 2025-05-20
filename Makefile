@@ -18,6 +18,9 @@ venv:
 install:
 	source venv/bin/activate && pip install -r requirements.txt && echo "Dependencies installed. See readme.md for make commands to start the application."
 
+app:
+	source venv/bin/activate && streamlit run app.py
+
 clean:
 	rm -rf venv __pycache__ *.pyc
 
