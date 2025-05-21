@@ -1,5 +1,7 @@
 # MAKAN AI - RAG Knowledge Base Chatbot
 
+![MAKAN AI Chatbot UI](readme/ui.png)
+
 MAKAN AI is a Retrieval-Augmented Generation (RAG) chatbot designed to provide food reccommendations using a curated knowledge base of food review articles. It makes use of embedding generation, and a local vector database on top of a LLM to provide accurate, context-aware responses.
 
 Note: To run project, you need to have Python 3.8+ installed, and also provide your own dataset of food reviews. The project is designed to be modular, allowing for easy integration of new data sources and models.
@@ -66,7 +68,7 @@ CHROMA_DB_PATH            # Directory path for the persisted Chroma vector datab
 - `make scrape` : Run all data scrapers to update datasets
 - `make process` : Clean and process raw data
 - `make embed` : Generate vector embeddings from cleaned data
-- `make run` : Start the RAG chatbot for question answering
+- `make run` : Start the RAG chatbot CLI for question answering
 - `make app` : Start the Streamlit Web UI for interactive chat (see below)
 
 ### Misc
@@ -91,19 +93,3 @@ CHROMA_DB_PATH            # Directory path for the persisted Chroma vector datab
   and follow the prompts.
 
 ---
-
-## 🌐 Web UI
-
-A web-based user interface is now available for interactive chat with the RAG chatbot. This UI allows you to:
-
-- Ask questions and receive recommendations in a chat format
-- View retrieved context and sources
-- Enjoy a more user-friendly experience compared to the CLI
-
-To start the UI:
-
-1. Ensure all dependencies are installed and data is processed/embedded.
-2. Run `make ui` (or the appropriate command for your setup).
-3. Open your browser at [http://localhost:8000](http://localhost:8000) (or the configured port).
-
-For more details, see comments in each script and the UI folder README if available.
