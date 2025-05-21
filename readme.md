@@ -21,11 +21,13 @@ makan-ai/
 ├── gen_embeddings.py         # Script for embedding generation
 ├── process_data.py           # Data cleaning and processing
 ├── qa.py                     # Main RAG chatbot script
+├── app.py                    # Streamlit Web UI for the chatbot
 ├── requirements.txt          # Python dependencies
 ├── Makefile                  # Automation commands
 ├── chroma_db/                # Local vector database (ChromaDB)
 ├── cleaned/                  # Cleaned data outputs
 ├── raw/                      # Raw collected data
+├── core/                     # Core modules (e.g., retrieval logic)
 └── readme.md                 # Project documentation
 ```
 
@@ -65,6 +67,7 @@ CHROMA_DB_PATH            # Directory path for the persisted Chroma vector datab
 - `make process` : Clean and process raw data
 - `make embed` : Generate vector embeddings from cleaned data
 - `make run` : Start the RAG chatbot for question answering
+- `make app` : Start the Streamlit Web UI for interactive chat (see below)
 
 ### Misc
 
@@ -73,7 +76,15 @@ CHROMA_DB_PATH            # Directory path for the persisted Chroma vector datab
 ## ✅ How to Use
 
 - Ensure data is loaded and vector store is populated
-- To ask questions, run:
+- To use the web UI, run:
+
+  ```sh
+  make app
+  ```
+
+  Then open your browser at [http://localhost:8501](http://localhost:8501).
+
+- To ask questions via CLI, run:
   ```sh
   make run
   ```
@@ -81,4 +92,18 @@ CHROMA_DB_PATH            # Directory path for the persisted Chroma vector datab
 
 ---
 
-For more details, see comments in each script.
+## 🌐 Web UI
+
+A web-based user interface is now available for interactive chat with the RAG chatbot. This UI allows you to:
+
+- Ask questions and receive recommendations in a chat format
+- View retrieved context and sources
+- Enjoy a more user-friendly experience compared to the CLI
+
+To start the UI:
+
+1. Ensure all dependencies are installed and data is processed/embedded.
+2. Run `make ui` (or the appropriate command for your setup).
+3. Open your browser at [http://localhost:8000](http://localhost:8000) (or the configured port).
+
+For more details, see comments in each script and the UI folder README if available.
